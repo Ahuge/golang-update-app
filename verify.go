@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
+	"fmt"
 	"io/ioutil"
 )
 
@@ -55,9 +56,11 @@ func verifyBinary(binPath string, serverSignature string) (bool, error) {
 		return false, err
 	}
 
+	fmt.Printf("Verifying server provided signature...")
 	err = rsa.VerifyPSS(publicKey, crypto.SHA256, sum, rawSignature, nil)
 	if err != nil {
 		return false, err
 	}
+	fmt.Printf(" Success\n")
 	return true, nil
 }

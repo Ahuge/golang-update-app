@@ -112,7 +112,7 @@ func main() {
 			fmt.Printf("Error signing binary \"%s\". %v\n", signFlag, err)
 			return
 		}
-		fmt.Printf("Signature: %s", out)
+		fmt.Printf("Signature: %s\n", out)
 	}
 
 }

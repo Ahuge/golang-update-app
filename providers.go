@@ -29,6 +29,7 @@ type AmazonS3 struct {
 	zipProvider     *provider.Zip // provider used to unzip the downloaded zip
 	zipPath         string        // path to the downloaded zip (should be in tmpDir)
 	latestSignature string
+	latestVersion   string
 }
 
 type VersionData struct {
@@ -36,30 +37,52 @@ type VersionData struct {
 	Signature string `json:"signature"`
 }
 
-// getReleases gets tags of the repository
-func (p *AmazonS3) getLatestVersion() (string, error) {
+func (p *AmazonS3) getVersionData() (VersionData, error) {
 	versionPath := filepath.Join(filepath.Dir(p.Key), "VERSION")
 	versionUrl, err := p.getS3Url(versionPath)
 	if err != nil {
-		return "", err
+		return VersionData{}, err
 	}
 	resp, err := http.Get(versionUrl)
 	if err != nil {
-		return "", err
+		return VersionData{}, err
 	}
 	defer resp.Body.Close()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return VersionData{}, err
 	}
 	var versionData VersionData
-	err = json.Unmarshal(data, versionData)
+	err = json.Unmarshal(data, &versionData)
 	if err != nil {
-		return "", nil
+		return VersionData{}, err
 	}
 	p.latestSignature = versionData.Signature
+	p.latestVersion = versionData.Version
+	return versionData, nil
+}
+
+func (p *AmazonS3) getLatestVersion() (string, error) {
+	if p.latestVersion != "" {
+		return p.latestVersion, nil
+	}
+	versionData, err := p.getVersionData()
+	if err != nil {
+		return "", err
+	}
 	return versionData.Version, nil
+}
+
+func (p *AmazonS3) getLatestSignature() (string, error) {
+	if p.latestSignature != "" {
+		return p.latestSignature, nil
+	}
+	versionData, err := p.getVersionData()
+	if err != nil {
+		return "", err
+	}
+	return versionData.Signature, nil
 }
 
 func (p *AmazonS3) getS3Url(key string) (string, error) {
@@ -126,7 +149,11 @@ func (p *AmazonS3) Open() error {
 	}
 
 	// Security
-	verified, err := verifyBinary(p.zipPath, p.latestSignature)
+	signature, err := p.getLatestSignature()
+	if err != nil {
+		return err
+	}
+	verified, err := verifyBinary(p.zipPath, signature)
 	if err != nil || verified != true {
 		// We're being hacked!
 		return fmt.Errorf("Could not verify signature of update: %v", err)
