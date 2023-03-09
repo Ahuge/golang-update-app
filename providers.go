@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -24,9 +25,15 @@ type AmazonS3 struct {
 	// us-west-2
 	Region string
 
-	tmpDir      string        // temporary directory this is used internally
-	zipProvider *provider.Zip // provider used to unzip the downloaded zip
-	zipPath     string        // path to the downloaded zip (should be in tmpDir)
+	tmpDir          string        // temporary directory this is used internally
+	zipProvider     *provider.Zip // provider used to unzip the downloaded zip
+	zipPath         string        // path to the downloaded zip (should be in tmpDir)
+	latestSignature string
+}
+
+type VersionData struct {
+	Version   string `json:"version"`
+	Signature string `json:"signature"`
 }
 
 // getReleases gets tags of the repository
@@ -46,7 +53,13 @@ func (p *AmazonS3) getLatestVersion() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return string(data), nil
+	var versionData VersionData
+	err = json.Unmarshal(data, versionData)
+	if err != nil {
+		return "", nil
+	}
+	p.latestSignature = versionData.Signature
+	return versionData.Version, nil
 }
 
 func (p *AmazonS3) getS3Url(key string) (string, error) {
@@ -111,6 +124,14 @@ func (p *AmazonS3) Open() error {
 	if err != nil {
 		return err
 	}
+
+	// Security
+	verified, err := verifyBinary(p.zipPath, p.latestSignature)
+	if err != nil || verified != true {
+		// We're being hacked!
+		return fmt.Errorf("Could not verify signature of update: %v", err)
+	}
+
 	p.zipProvider = &provider.Zip{Path: p.zipPath}
 	return p.zipProvider.Open()
 
