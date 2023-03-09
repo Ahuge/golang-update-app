@@ -18,7 +18,7 @@ func main() {
 			Region:     "us-west-2",
 		},
 		ExecutableName: fmt.Sprintf("golang-update-app"),
-		Version:        "v0.2.0", // You can change this value to trigger an update
+		Version:        "v0.2.1", // You can change this value to trigger an update
 	}
 
 	versionFlag := false
